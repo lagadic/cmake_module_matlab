@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package>
+  <name>cmake_module_matlab</name>
+  <version>0.0.1</version>
+  <description>A CMake Module for finding Matlab and setting compile flags using mex executable.</description>
+
+  <maintainer email="riccardo.spica@irisa.fr">Riccardo Spica</maintainer>
+
+  <license>BSD</license>
+
+  <url type="webpage">http://wiki.ros.org//cmake_module_matlab</url>
+  <url type="repository">https://github.com/lagadic/cmake_module_matlab</url>
+
+  <author email="riccardo.spica@irisa.fr">Riccardo Spica</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <export>
+    <architecture_independent/>
+  </export>
+</package>
