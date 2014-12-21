@@ -40,7 +40,9 @@ cmake_minimum_required (VERSION 2.6)
 project (test)
 
 
-set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/../Modules ${CMAKE_MODULE_PATH})
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/../cmake/Modules ${CMAKE_MODULE_PATH})
+
+message(STATUS "CMAKE_MODULE_PATH = ${CMAKE_MODULE_PATH}")
 
 find_package(Matlab REQUIRED)
 
@@ -68,6 +70,7 @@ add_library(timestwo SHARED ${MATLAB_ROOT}/toolbox/simulink/simdemos/simfeatures
 target_link_libraries(timestwo ${MATLAB_LIBRARIES})
 set_target_properties(timestwo PROPERTIES PREFIX "" SUFFIX ${MATLAB_MEX_EXT})
 
+# C++ S-Function
 add_library(sfun_counter_cpp SHARED ${MATLAB_ROOT}/toolbox/simulink/simdemos/simfeatures/src/sfun_counter_cpp.cpp)
 target_link_libraries(sfun_counter_cpp ${MATLAB_LIBRARIES})
 set_target_properties(sfun_counter_cpp PROPERTIES PREFIX "" SUFFIX ${MATLAB_MEX_EXT})
