@@ -37,7 +37,7 @@
  #
  # This module looks for Matlab using mex executable
  # Defines:
- #   MATLAB_MEXOPTS: mexopts file used to configure Matlab
+ #   MATLAB_CXX_MEXOPTS: mexopts file used to configure Matlab
  #   MATLAB_ROOT:  root directory of MATLAB
  #   MATLAB_CXX_COMPILER: C++ compiler
  #   MATLAB_CXX_FLAGS: C++ compiler flags
@@ -65,7 +65,7 @@
 set(MATLAB_FOUND 0)
 
 if(WIN32)
-  message(FATAL "Windows is not supported")
+  #message(FATAL "Windows is not supported")
 else()
 
   if(NOT MATLAB_DIR)
@@ -73,48 +73,92 @@ else()
   endif()
 
 #  if(${MATLAB_DIR} STREQUAL "")
+
+  set(TEST_CXX_MEX_FILE ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp/testMexCompiler.cxx)
+
+  ##message(STATUS "TEST_CXX_MEX_FILE = ${TEST_CXX_MEX_FILE}")
+
+  file(WRITE ${TEST_CXX_MEX_FILE}
+    "#ifndef __cplusplus\n"
+    "# error \"The CMAKE_CXX_COMPILER is set to a C compiler\"\n"
+    "#endif\n"
+    "int main(){return 0;}\n")
+
+  set(TEST_C_MEX_FILE ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp/testMexCompiler.c)
+
+  ##message(STATUS "TEST_C_MEX_FILE = ${TEST_C_MEX_FILE}")
+
+  file(WRITE ${TEST_C_MEX_FILE}
+    "#ifdef __cplusplus\n"
+    "# error \"The CMAKE_C_COMPILER is set to a C++ compiler\"\n"
+    "#endif\n"
+    "int main(){return 0;}\n")
+
   if(NOT MATLAB_DIR)
-    execute_process(COMMAND mex -v 2> /dev/null OUTPUT_VARIABLE MEX_RESULT)
+    execute_process(COMMAND mex -v ${TEST_CXX_MEX_FILE} -output ${TEST_CXX_MEX_FILE} OUTPUT_VARIABLE CXX_MEX_RESULT)
+    execute_process(COMMAND mex -v ${TEST_C_MEX_FILE} -output ${TEST_CXX_MEX_FILE} OUTPUT_VARIABLE C_MEX_RESULT)
   else()
-    execute_process(COMMAND ${MATLAB_DIR}/bin/mex -v 2> /dev/null OUTPUT_VARIABLE MEX_RESULT)
+    execute_process(COMMAND "${MATLAB_DIR}/bin/mex -v ${TEST_CXX_MEX_FILE}" -output ${TEST_CXX_MEX_FILE} 2> /dev/null OUTPUT_VARIABLE CXX_MEX_RESULT)
+    execute_process(COMMAND "${MATLAB_DIR}/bin/mex -v ${TEST_C_MEX_FILE}" -output ${TEST_C_MEX_FILE} 2> /dev/null OUTPUT_VARIABLE C_MEX_RESULT)
   endif()
 
-  #message(STATUS "MEX_RESULT=${MEX_RESULT}")
+  #file(REMOVE ${TEST_CXX_MEX_FILE})
 
+  ##message(STATUS "CXX_MEX_RESULT=${CXX_MEX_RESULT}")
 
+  #message(STATUS "C_MEX_RESULT=${C_MEX_RESULT}")
+  
   ## Extract CXX flags
 
-  string(REGEX MATCH "FILE[ ]+=[^\n]*\n" MATLAB_MEXOPTS ${MEX_RESULT})
-  string(REGEX REPLACE "FILE[ ]+=[ ]*" "" MATLAB_MEXOPTS ${MATLAB_MEXOPTS})
-  string(REGEX REPLACE "\n" "" MATLAB_MEXOPTS ${MATLAB_MEXOPTS})
+  string(REGEX MATCH "FILE[ ]+=[^\n]*\n" MATLAB_CXX_MEXOPTS ${CXX_MEX_RESULT})
 
-  string(REGEX MATCH "MATLAB[ ]+=[^\n]*\n" MATLAB_ROOT ${MEX_RESULT})
-  string(REGEX REPLACE "MATLAB[ ]+=[ ]*" "" MATLAB_ROOT ${MATLAB_ROOT})
+  if("${MATLAB_CXX_MEXOPTS}" STREQUAL "")
+    set(MATLAB_NEW_MEXOPTS "TRUE")
+    string(REGEX MATCH "Options file[ ]*:[^\n]*\n" MATLAB_CXX_MEXOPTS ${CXX_MEX_RESULT})
+    string(REGEX REPLACE "Options file[ ]*:[ ]*" "" MATLAB_CXX_MEXOPTS ${MATLAB_CXX_MEXOPTS})
+    string(REGEX MATCH "Options file[ ]*:[^\n]*\n" MATLAB_C_MEXOPTS ${C_MEX_RESULT})
+    string(REGEX REPLACE "Options file[ ]*:[ ]*" "" MATLAB_C_MEXOPTS ${MATLAB_C_MEXOPTS})
+    string(REGEX MATCH "MATLABROOT[ ]+:[^\n]*\n" MATLAB_ROOT ${CXX_MEX_RESULT})
+    string(REGEX REPLACE "MATLABROOT[ ]+:[ ]*" "" MATLAB_ROOT ${MATLAB_ROOT})
+  else()
+    set(MATLAB_NEW_MEXOPTS "FALSE")
+    string(REGEX REPLACE "FILE[ ]+=[ ]*" "" MATLAB_CXX_MEXOPTS ${MATLAB_CXX_MEXOPTS})
+    set(MATLAB_C_MEXOPTS ${MATLAB_CXX_MEXOPTS})
+    string(REGEX MATCH "MATLAB[ ]+=[^\n]*\n" MATLAB_ROOT ${CXX_MEX_RESULT})
+    string(REGEX REPLACE "MATLAB[ ]+=[ ]*" "" MATLAB_ROOT ${MATLAB_ROOT})
+  endif()
+  string(REGEX REPLACE "\n" "" MATLAB_CXX_MEXOPTS ${MATLAB_CXX_MEXOPTS})
+  string(REGEX REPLACE "\n" "" MATLAB_C_MEXOPTS ${MATLAB_C_MEXOPTS})
   string(REGEX REPLACE "\n" "" MATLAB_ROOT ${MATLAB_ROOT})
 
-  string(REGEX MATCH "CXX[ ]+=[^\n]*\n" MATLAB_CXX_COMPILER ${MEX_RESULT})
-  string(REGEX REPLACE "CXX[ ]+=[ ]*" "" MATLAB_CXX_COMPILER ${MATLAB_CXX_COMPILER})
+  string(REGEX MATCH "CXX[ \t]+[:=][^\n]*\n" MATLAB_CXX_COMPILER ${CXX_MEX_RESULT})
+  string(REGEX REPLACE "CXX[ \t]+[:=][ ]*" "" MATLAB_CXX_COMPILER ${MATLAB_CXX_COMPILER})
   string(REGEX REPLACE "\n" "" MATLAB_CXX_COMPILER ${MATLAB_CXX_COMPILER})
 
   string(FIND ${CMAKE_CXX_COMPILER} ${MATLAB_CXX_COMPILER} COMPILER_RESULT REVERSE)
   if (${COMPILER_RESULT} MATCHES -1)
-    message(WARNING "Please run cmake with -DCMAKE_CXX_COMPILER=${MATLAB_CXX_COMPILER}")
+    #message(WARNING "${CMAKE_CXX_COMPILER} might not be compatible with the current Matlab version. Please run cmake with -DCMAKE_CXX_COMPILER=${MATLAB_CXX_COMPILER}")
   endif()
 
-  string(REGEX MATCH "CXXFLAGS[ ]+=[^\n]*\n" MATLAB_CXX_FLAGS ${MEX_RESULT})
-  string(REGEX REPLACE "CXXFLAGS[ ]+=[ ]*" "" MATLAB_CXX_FLAGS ${MATLAB_CXX_FLAGS})
+  string(REGEX MATCH "CXXFLAGS[ \t]+[:=][^\n]*\n" MATLAB_CXX_FLAGS ${CXX_MEX_RESULT})
+  string(REGEX REPLACE "CXXFLAGS[ \t]+[:=][ \t]*" "" MATLAB_CXX_FLAGS ${MATLAB_CXX_FLAGS})
   string(REGEX REPLACE "\n" "" MATLAB_CXX_FLAGS ${MATLAB_CXX_FLAGS}) 
 
-  string(REGEX MATCH "CXXDEBUGFLAGS[ ]+=[^\n]*\n" MATLAB_CXX_FLAGS_DEBUG ${MEX_RESULT})
-  string(REGEX REPLACE "CXXDEBUGFLAGS[ ]+=[ ]*" "" MATLAB_CXX_FLAGS_DEBUG ${MATLAB_CXX_FLAGS_DEBUG})
+  string(REGEX MATCH "CXXDEBUGFLAGS[ \t]+[:=][^\n]*\n" MATLAB_CXX_FLAGS_DEBUG ${CXX_MEX_RESULT})
+  string(REGEX REPLACE "CXXDEBUGFLAGS[ \t]+[:=][ \t]*" "" MATLAB_CXX_FLAGS_DEBUG ${MATLAB_CXX_FLAGS_DEBUG})
   string(REGEX REPLACE "\n" "" MATLAB_CXX_FLAGS_DEBUG ${MATLAB_CXX_FLAGS_DEBUG})
 
-  string(REGEX MATCH "CXXOPTIMFLAGS[ ]+=[^\n]*\n" MATLAB_CXX_FLAGS_RELEASE ${MEX_RESULT})
-  string(REGEX REPLACE "CXXOPTIMFLAGS[ ]+=[ ]*" "" MATLAB_CXX_FLAGS_RELEASE ${MATLAB_CXX_FLAGS_RELEASE})
+  string(REGEX MATCH "CXXOPTIMFLAGS[ \t]+[:=][^\n]*\n" MATLAB_CXX_FLAGS_RELEASE ${CXX_MEX_RESULT})
+  string(REGEX REPLACE "CXXOPTIMFLAGS[ \t]+[:=][ \t]*" "" MATLAB_CXX_FLAGS_RELEASE ${MATLAB_CXX_FLAGS_RELEASE})
   string(REGEX REPLACE "\n" "" MATLAB_CXX_FLAGS_RELEASE ${MATLAB_CXX_FLAGS_RELEASE})
 
-  string(REGEX MATCH "CXXLIBS[ ]+=[^\n]*\n" MATLAB_LINKER_FLAGS ${MEX_RESULT})
-  string(REGEX REPLACE "CXXLIBS[ ]+=[ ]*" "" MATLAB_LINKER_FLAGS ${MATLAB_LINKER_FLAGS})
+  if(MATLAB_NEW_MEXOPTS)
+    string(REGEX MATCH "LINKLIBS[ \t]+:[^\n]*" MATLAB_LINKER_FLAGS ${CXX_MEX_RESULT})
+    string(REGEX REPLACE "LINKLIBS[ \t]+:[ \t]*" "" MATLAB_LINKER_FLAGS ${MATLAB_LINKER_FLAGS})
+  else()
+    string(REGEX MATCH "CXXLIBS[ \t]+=[^\n]*\n" MATLAB_LINKER_FLAGS ${CXX_MEX_RESULT})
+    string(REGEX REPLACE "CXXLIBS[ \t]+=[ \t]*" "" MATLAB_LINKER_FLAGS ${MATLAB_LINKER_FLAGS})
+  endif()
   string(REGEX REPLACE "\n" "" MATLAB_LINKER_FLAGS ${MATLAB_LINKER_FLAGS})
 
   string(REGEX MATCHALL "[ ]+[-][l]([^ ;])+" MATLAB_LIBRARIES ${MATLAB_LINKER_FLAGS})
@@ -126,27 +170,38 @@ else()
   string(REGEX REPLACE "[-][L]([^ ;])+" "" MATLAB_LINKER_FLAGS ${MATLAB_LINKER_FLAGS})
   string(REGEX REPLACE "^[ ]*-L" "" MATLAB_LIB_DIR ${MATLAB_LIB_DIR})
   string(REGEX REPLACE "[ ]*-L" ";" MATLAB_LIB_DIR ${MATLAB_LIB_DIR})
+  string(REGEX REPLACE "[\"]" "" MATLAB_LIB_DIR ${MATLAB_LIB_DIR})
 
-  string(REGEX MATCH "arguments[ ]+=[^\n]*\n" MATLAB_DEFINITIONS ${MEX_RESULT})
-  string(REGEX REPLACE "arguments[ ]+=[ ]*" "" MATLAB_DEFINITIONS ${MATLAB_DEFINITIONS})
+  if(MATLAB_NEW_MEXOPTS)
+    string(REGEX MATCH "DEFINES[ \t]+[:=][^\n]*\n" MATLAB_DEFINITIONS ${CXX_MEX_RESULT})
+    string(REGEX REPLACE "DEFINES[ \t]+[:=][ ]*" "" MATLAB_DEFINITIONS ${MATLAB_DEFINITIONS})
+  else()
+    string(REGEX MATCH "arguments[ \t]+[:=][^\n]*\n" MATLAB_DEFINITIONS ${CXX_MEX_RESULT})
+    string(REGEX REPLACE "arguments[ \t]+[:=][ ]*" "" MATLAB_DEFINITIONS ${MATLAB_DEFINITIONS})
+    set(MATLAB_DEFINITIONS "-DMATLAB_MEX_FILE ${MATLAB_DEFINITIONS}")
+  endif()
   string(REGEX REPLACE "\n" "" MATLAB_DEFINITIONS ${MATLAB_DEFINITIONS})
-  set(MATLAB_DEFINITIONS "-DMATLAB_MEX_FILE ${MATLAB_DEFINITIONS}")
+  
 
   foreach(MATLAB_LIBRARY ${MATLAB_LIBRARIES})
     if(IS_ABSOLUTE ${MATLAB_LIBRARY})
       set(MATLAB_${MATLAB_LIBRARY}_LIB ${MATLAB_LIBRARY})
     else(IS_ABSOLUTE ${MATLAB_LIBRARY})
-      #message(STATUS "Looking for ${MATLAB_LIBRARY}")
+      ##message(STATUS "Looking for ${MATLAB_LIBRARY} in ${MATLAB_LIB_DIR}")
       string(TOUPPER ${MATLAB_LIBRARY} MATLAB_LIBRARY_NAME)
       find_library(MATLAB_${MATLAB_LIBRARY_NAME}_LIBRARY ${MATLAB_LIBRARY} HINTS ${MATLAB_LIB_DIR})
-      #message(STATUS "${MATLAB_LIBRARY} found in ${MATLAB_${MATLAB_LIBRARY_NAME}_LIBRARY}")
-      #message(STATUS "MATLAB_LIBRARIES=${MATLAB_LIBRARIES}")
+      ##message(STATUS "${MATLAB_LIBRARY} found in ${MATLAB_${MATLAB_LIBRARY_NAME}_LIBRARY}")
+      ##message(STATUS "MATLAB_LIBRARIES=${MATLAB_LIBRARIES}")
     endif(IS_ABSOLUTE ${MATLAB_LIBRARY})
   endforeach(MATLAB_LIBRARY)
 
-
-  string(REGEX MATCH "LDEXTENSION[ ]+=[^\n]*\n" MATLAB_MEX_EXT ${MEX_RESULT})
-  string(REGEX REPLACE "LDEXTENSION[ ]+=[ ]*" "" MATLAB_MEX_EXT ${MATLAB_MEX_EXT})
+  if(MATLAB_NEW_MEXOPTS)
+    string(REGEX MATCH "LDEXT[ \t]+[:=][^\n]*\n" MATLAB_MEX_EXT ${CXX_MEX_RESULT})
+    string(REGEX REPLACE "LDEXT[ \t]+[:=][ ]*" "" MATLAB_MEX_EXT ${MATLAB_MEX_EXT})
+  else()
+    string(REGEX MATCH "LDEXTENSION[ \t]+[:=][^\n]*\n" MATLAB_MEX_EXT ${CXX_MEX_RESULT})
+    string(REGEX REPLACE "LDEXTENSION[ \t]+[:=][ ]*" "" MATLAB_MEX_EXT ${MATLAB_MEX_EXT})
+  endif()
   string(REGEX REPLACE "\n" "" MATLAB_MEX_EXT ${MATLAB_MEX_EXT})
 
   find_path (MATLAB_INCLUDE_DIRS
@@ -167,29 +222,31 @@ else()
 
   ## Extract CC flags
 
-  string(REGEX MATCH "CC[ ]+=[^\n]*\n" MATLAB_C_COMPILER ${MEX_RESULT})
-  string(REGEX REPLACE "CC[ ]+=[ ]*" "" MATLAB_C_COMPILER ${MATLAB_C_COMPILER})
+  string(REGEX MATCH "CC[ \t]+[:=][^\n]*\n" MATLAB_C_COMPILER ${C_MEX_RESULT})
+  string(REGEX REPLACE "CC[ \t]+[:=][ ]*" "" MATLAB_C_COMPILER ${MATLAB_C_COMPILER})
   string(REGEX REPLACE "\n" "" MATLAB_C_COMPILER ${MATLAB_C_COMPILER})
 
   string(FIND ${CMAKE_C_COMPILER} ${MATLAB_C_COMPILER} COMPILER_RESULT REVERSE)
   if (${COMPILER_RESULT} MATCHES -1)
-    message(WARNING "Please run cmake with -DCMAKE_C_COMPILER=${MATLAB_C_COMPILER}")
+    #message(WARNING "${CMAKE_C_COMPILER} might not be compatible with the current Matlab version. Please run cmake with -DCMAKE_C_COMPILER=${MATLAB_C_COMPILER}")
   endif()
 
-  string(REGEX MATCH "CFLAGS[ ]+=[^\n]*\n" MATLAB_C_FLAGS ${MEX_RESULT})
-  string(REGEX REPLACE "CFLAGS[ ]+=[ ]*" "" MATLAB_C_FLAGS ${MATLAB_C_FLAGS})
+  string(REGEX MATCH "CFLAGS[ \t]+[:=][^\n]*\n" MATLAB_C_FLAGS ${C_MEX_RESULT})
+  string(REGEX REPLACE "CFLAGS[ \t]+[:=][ ]*" "" MATLAB_C_FLAGS ${MATLAB_C_FLAGS})
   string(REGEX REPLACE "\n" "" MATLAB_C_FLAGS ${MATLAB_C_FLAGS}) 
 
-  string(REGEX MATCH "CDEBUGFLAGS[ ]+=[^\n]*\n" MATLAB_C_FLAGS_DEBUG ${MEX_RESULT})
-  string(REGEX REPLACE "CDEBUGFLAGS[ ]+=[ ]*" "" MATLAB_C_FLAGS_DEBUG ${MATLAB_C_FLAGS_DEBUG})
+  string(REGEX MATCH "CDEBUGFLAGS[ \t]+[:=][^\n]*\n" MATLAB_C_FLAGS_DEBUG ${C_MEX_RESULT})
+  string(REGEX REPLACE "CDEBUGFLAGS[ \t]+[:=][ ]*" "" MATLAB_C_FLAGS_DEBUG ${MATLAB_C_FLAGS_DEBUG})
   string(REGEX REPLACE "\n" "" MATLAB_C_FLAGS_DEBUG ${MATLAB_C_FLAGS_DEBUG})
 
-  string(REGEX MATCH "COPTIMFLAGS[ ]+=[^\n]*\n" MATLAB_C_FLAGS_RELEASE ${MEX_RESULT})
-  string(REGEX REPLACE "COPTIMFLAGS[ ]+=[ ]*" "" MATLAB_C_FLAGS_RELEASE ${MATLAB_C_FLAGS_RELEASE})
+  string(REGEX MATCH "COPTIMFLAGS[ \t]+[:=][^\n]*\n" MATLAB_C_FLAGS_RELEASE ${C_MEX_RESULT})
+  string(REGEX REPLACE "COPTIMFLAGS[ \t]+[:=][ ]*" "" MATLAB_C_FLAGS_RELEASE ${MATLAB_C_FLAGS_RELEASE})
   string(REGEX REPLACE "\n" "" MATLAB_C_FLAGS_RELEASE ${MATLAB_C_FLAGS_RELEASE})
 
-  #string(REGEX MATCH "CLIBS[ ]+=[^\n]*\n" MATLAB_C_LINK_FLAGS ${MEX_RESULT})
-  #string(REGEX REPLACE "CLIBS[ ]+=[ ]*" "" MATLAB_C_LINK_FLAGS ${MATLAB_C_LINK_FLAGS})
+
+
+  #string(REGEX MATCH "CLIBS[]+[:=][^\n]*\n" MATLAB_C_LINK_FLAGS ${C_MEX_RESULT})
+  #string(REGEX REPLACE "CLIBS[]+[:=][ ]*" "" MATLAB_C_LINK_FLAGS ${MATLAB_C_LINK_FLAGS})
   #string(REGEX REPLACE "\n" "" MATLAB_C_LINK_FLAGS ${MATLAB_C_LINK_FLAGS})
 
   #string(REGEX MATCHALL "[ ]+[-][l]([^ ;])+" MATLAB_LIBRARIES ${MATLAB_C_LINK_FLAGS})
@@ -202,8 +259,8 @@ else()
   #string(REGEX REPLACE "^[ ]*-L" "" MATLAB_LIB_DIR ${MATLAB_LIB_DIR})
   #string(REGEX REPLACE "[ ]*-L" ";" MATLAB_LIB_DIR ${MATLAB_LIB_DIR})
 
-  #string(REGEX MATCH "arguments[ ]+=[^\n]*\n" MATLAB_C_DEFINITIONS ${MEX_RESULT})
-  #string(REGEX REPLACE "arguments[ ]+=[ ]*" "" MATLAB_C_DEFINITIONS ${MATLAB_C_DEFINITIONS})
+  #string(REGEX MATCH "arguments[]+[:=][^\n]*\n" MATLAB_C_DEFINITIONS ${C_MEX_RESULT})
+  #string(REGEX REPLACE "arguments[]+[:=][ ]*" "" MATLAB_C_DEFINITIONS ${MATLAB_C_DEFINITIONS})
   #string(REGEX REPLACE "\n" "" MATLAB_C_DEFINITIONS ${MATLAB_C_DEFINITIONS})
   #set(MATLAB_C_DEFINITIONS "-DMATLAB_MEX_FILE ${MATLAB_C_DEFINITIONS}")
 
@@ -211,46 +268,42 @@ else()
   #  if(IS_ABSOLUTE ${MATLAB_LIBRARY})
   #    set(MATLAB_${MATLAB_LIBRARY}_LIB ${MATLAB_LIBRARY})
   #  else(IS_ABSOLUTE ${MATLAB_LIBRARY})
-  #    message(STATUS "Looking for ${MATLAB_LIBRARY}")
+  #    #message(STATUS "Looking for ${MATLAB_LIBRARY}")
   #    string(TOUPPER ${MATLAB_LIBRARY} MATLAB_LIBRARY_NAME)
   #    find_library(MATLAB_${MATLAB_LIBRARY_NAME}_LIBRARY ${MATLAB_LIBRARY} HINTS ${MATLAB_LIB_DIR})
-  #    message(STATUS "${MATLAB_LIBRARY} found in ${MATLAB_${MATLAB_LIBRARY_NAME}_LIBRARY}")
+  #    #message(STATUS "${MATLAB_LIBRARY} found in ${MATLAB_${MATLAB_LIBRARY_NAME}_LIBRARY}")
   #  endif(IS_ABSOLUTE ${MATLAB_LIBRARY})
   #endforeach(MATLAB_LIBRARY)
 
 
-  #message(STATUS "Using file ${MATLAB_MEXOPTS} to configure Matlab")
-  #message(STATUS "MATLAB_ROOT=${MATLAB_ROOT}")
 
-
-
-
-  #message(STATUS "Using file ${MATLAB_MEXOPTS} to configure Matlab")
-  #message(STATUS "MATLAB_ROOT=${MATLAB_ROOT}")
   
-  #message(STATUS "\n\nC++ section")
-  #message(STATUS "MATLAB_CXX_COMPILER=${MATLAB_CXX_COMPILER}")
-  #message(STATUS "MATLAB_CXX_FLAGS=${MATLAB_CXX_FLAGS}")
-  #message(STATUS "MATLAB_CXX_FLAGS_DEBUG=${MATLAB_CXX_FLAGS_DEBUG}")
-  #message(STATUS "MATLAB_CXX_FLAGS_RELEASE=${MATLAB_CXX_FLAGS_RELEASE}")
+  ##message(STATUS "MATLAB_ROOT = ${MATLAB_ROOT}\n\n")
   
-  #message(STATUS "\n\nC section")
-  #message(STATUS "MATLAB_C_COMPILER=${MATLAB_C_COMPILER}")
-  #message(STATUS "MATLAB_C_FLAGS=${MATLAB_C_FLAGS}")
-  #message(STATUS "MATLAB_C_FLAGS_DEBUG=${MATLAB_C_FLAGS_DEBUG}")
-  #message(STATUS "MATLAB_C_FLAGS_RELEASE=${MATLAB_C_FLAGS_RELEASE}")
+  #message(STATUS "C++ section")
+  #message(STATUS "Using file ${MATLAB_CXX_MEXOPTS} to configure Matlab C++ compilation")
+  #message(STATUS "MATLAB_CXX_COMPILER = ${MATLAB_CXX_COMPILER}")
+  #message(STATUS "MATLAB_CXX_FLAGS = ${MATLAB_CXX_FLAGS}")
+  #message(STATUS "MATLAB_CXX_FLAGS_DEBUG = ${MATLAB_CXX_FLAGS_DEBUG}")
+  #message(STATUS "MATLAB_CXX_FLAGS_RELEASE = ${MATLAB_CXX_FLAGS_RELEASE}\n\n")
+  
+  #message(STATUS "C section")
+  #message(STATUS "Using file ${MATLAB_C_MEXOPTS} to configure Matlab C compilation")
+  #message(STATUS "MATLAB_C_COMPILER = ${MATLAB_C_COMPILER}")
+  #message(STATUS "MATLAB_C_FLAGS = ${MATLAB_C_FLAGS}")
+  #message(STATUS "MATLAB_C_FLAGS_DEBUG = ${MATLAB_C_FLAGS_DEBUG}")
+  #message(STATUS "MATLAB_C_FLAGS_RELEASE = ${MATLAB_C_FLAGS_RELEASE}\n\n")
 
-  #message(STATUS "\n\nCommond link section")
-  #message(STATUS "MATLAB_LINKER_FLAGS=${MATLAB_LINKER_FLAGS}")
-  #message(STATUS "MATLAB_LIBRARIES=${MATLAB_LIBRARIES}")
-  #message(STATUS "MATLAB_LIB_DIR=${MATLAB_LIB_DIR}")
-  #message(STATUS "MATLAB_MEX_EXT=${MATLAB_MEX_EXT}")
+  #message(STATUS "Common link section")
+  #message(STATUS "MATLAB_LINKER_FLAGS = ${MATLAB_LINKER_FLAGS}")
+  #message(STATUS "MATLAB_LIBRARIES = ${MATLAB_LIBRARIES}")
+  #message(STATUS "MATLAB_LIB_DIR = ${MATLAB_LIB_DIR}")
+  #message(STATUS "MATLAB_MEX_EXT = ${MATLAB_MEX_EXT}\n\n")
 
-  #message(STATUS "\n\nCommond definitions")
-  #message(STATUS "MATLAB_DEFINITIONS=${MATLAB_DEFINITIONS}")
-  #message(STATUS "MATLAB_INCLUDE_DIRS = ${MATLAB_INCLUDE_DIRS}")
-  #message(STATUS "SIMULINK_INCLUDE_DIRS = ${SIMULINK_INCLUDE_DIRS}") 
+  #message(STATUS "Common definitions")
   #message(STATUS "MATLAB_DEFINITIONS = ${MATLAB_DEFINITIONS}")
+  #message(STATUS "MATLAB_INCLUDE_DIRS = ${MATLAB_INCLUDE_DIRS}")
+  #message(STATUS "SIMULINK_INCLUDE_DIRS = ${SIMULINK_INCLUDE_DIRS}\n\n")
 
 
 endif()
