@@ -57,6 +57,9 @@
  #   MATLAB_INCLUDE_DIRS: include path for MATLAB headers
  #   SIMULINK_INCLUDE_DIRS: include path for SIMULINK headers 
  #
+ #   MATLAB_MEX: full path of the mex command
+ #   MATLAB_EXE: full path of matlab command
+ #   
  # Note: mex executable must be in your system path or you need to define
  #  MATLAB_DIR to be the path of your MATLAB installation
  ####################################################################
@@ -95,12 +98,16 @@ else()
     "int main(){return 0;}\n")
 
   if(NOT MATLAB_DIR)
-    execute_process(COMMAND mex -v ${TEST_CXX_MEX_FILE} -output ${TEST_CXX_MEX_FILE} OUTPUT_VARIABLE CXX_MEX_RESULT)
-    execute_process(COMMAND mex -v ${TEST_C_MEX_FILE} -output ${TEST_CXX_MEX_FILE} OUTPUT_VARIABLE C_MEX_RESULT)
+    execute_process(COMMAND which mex COMMAND xargs readlink -f OUTPUT_VARIABLE MATLAB_MEX OUTPUT_STRIP_TRAILING_WHITESPACE)
+    execute_process(COMMAND which matlab COMMAND xargs readlink -f OUTPUT_VARIABLE MATLAB_EXE OUTPUT_STRIP_TRAILING_WHITESPACE)
   else()
-    execute_process(COMMAND "${MATLAB_DIR}/bin/mex -v ${TEST_CXX_MEX_FILE}" -output ${TEST_CXX_MEX_FILE} 2> /dev/null OUTPUT_VARIABLE CXX_MEX_RESULT)
-    execute_process(COMMAND "${MATLAB_DIR}/bin/mex -v ${TEST_C_MEX_FILE}" -output ${TEST_C_MEX_FILE} 2> /dev/null OUTPUT_VARIABLE C_MEX_RESULT)
+    set(MATLAB_MEX ${MATLAB_DIR}/bin/mex)
+    set(MATLAB_EXE ${MATLAB_DIR}/bin/matlab)
   endif()
+
+  #message(STATUS "Testing mex file compiling with ${MATLAB_MEX} -v ${TEST_CXX_MEX_FILE}")
+  execute_process(COMMAND ${MATLAB_MEX} -v ${TEST_CXX_MEX_FILE} -output ${TEST_CXX_MEX_FILE} OUTPUT_VARIABLE CXX_MEX_RESULT)
+  execute_process(COMMAND ${MATLAB_MEX} -v ${TEST_C_MEX_FILE} -output ${TEST_CXX_MEX_FILE} OUTPUT_VARIABLE C_MEX_RESULT)
 
   #file(REMOVE ${TEST_CXX_MEX_FILE})
 
