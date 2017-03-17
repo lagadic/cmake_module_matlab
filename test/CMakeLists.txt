@@ -68,9 +68,9 @@ set_target_properties(timestwo_mex PROPERTIES PREFIX "" SUFFIX ${MATLAB_MEX_EXT}
 # C S-Function
 add_library(timestwo SHARED ${MATLAB_ROOT}/toolbox/simulink/simdemos/simfeatures/src/timestwo.c)
 target_link_libraries(timestwo ${MATLAB_LIBRARIES})
-set_target_properties(timestwo PROPERTIES PREFIX "" SUFFIX ${MATLAB_MEX_EXT})
+set_target_properties(timestwo PROPERTIES PREFIX "" SUFFIX ${MATLAB_MEX_EXT} COMPILE_DEFINITIONS "MATLAB_MEX_FILE")
 
 # C++ S-Function
 add_library(sfun_counter_cpp SHARED ${MATLAB_ROOT}/toolbox/simulink/simdemos/simfeatures/src/sfun_counter_cpp.cpp)
 target_link_libraries(sfun_counter_cpp ${MATLAB_LIBRARIES})
-set_target_properties(sfun_counter_cpp PROPERTIES PREFIX "" SUFFIX ${MATLAB_MEX_EXT})
+set_target_properties(sfun_counter_cpp PROPERTIES PREFIX "" SUFFIX ${MATLAB_MEX_EXT} COMPILE_DEFINITIONS "MATLAB_MEX_FILE")
